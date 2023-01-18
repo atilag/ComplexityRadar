@@ -1,0 +1,13 @@
+[package]
+name = "thebill"
+version = "0.1.0"
+authors = ["Juan Gomez <atilag@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.68"
+async-trait = "0.1.61"
+octocrab = "0.18"
+tokio =  {version = "1.24", features = ["full"]}
