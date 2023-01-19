@@ -1,32 +1,41 @@
-use std::path::PathBuf;
+use std::collections::HashMap;
+use itertools::Itertools;
 use std::vec::Vec;
-use octocrab::{Octocrab, params::pulls::comments};
+use octocrab::{Octocrab, models::repos::RepoCommit};
 use async_trait;
 use anyhow::Result;
 
+fn sort_by_change_frequency(commits: Vec<RepoCommit>) ->  HashMap<String, usize> {
+    let commit_total_change = commits.into_iter()
+
+
+    println!("Hash map: {:#?}", commit_total_change);
+    commit_total_change
+}
+
+
 #[async_trait::async_trait]
 trait TopChangedFilesExt {
-    async fn get_top_5_changed_files(&self) -> Result<Vec<PathBuf>>;
+    async fn get_top_5_changed_files(&self, owner: &str, repo: &str) -> Result<HashMap<String, usize>>;
 }
 
 
 #[async_trait::async_trait]
 impl TopChangedFilesExt for Octocrab {
-    async fn get_top_5_changed_files(&self) -> Result<Vec<PathBuf>> {
-        //let result = self.get("/repos/atilag/IBM-Quantum-Systems-Exercise/commits", None::<&()>).await?;
-        let result = self.repos("atilag", "IBM-Quantum-Systems-Exercise")
-        .get_content()
+    async fn get_top_5_changed_files(&self, owner: &str, repo: &str) -> Result<HashMap<String, usize>> {
+        let commits = self.repos(owner, repo)
+        .list_commits()
         .send()
         .await?;
 
-        Ok(result.items
-            .into_iter()
-            .map(|content|{
-                println!("Content: {:?}", content.path);
-                content.path.into()
-
-            })
-            .collect::<Vec<PathBuf>>())
+        let commits: Vec<RepoCommit> = commits.items
+        .into_iter()
+        .map(|repo_commit|{
+            println!("{:#?}", repo_commit);
+            repo_commit
+        })
+        .collect();
+        Ok(sort_by_change_frequency(commits))
     }
 }
 
@@ -45,15 +54,19 @@ mod test {
     async fn get_the_top_5_changed_files() {
 
         let top_5_changed_files = octocrab::instance()
-            .get_top_5_changed_files().await;
+            .get_top_5_changed_files("atilag", "IBM-Quantum-Systems-Exercise").await;
 
-        let expected: Vec<PathBuf> = vec![
-            "LICENSE".into(),
-            "README.md".into(),
-            "generate-quantum-programs.py".into(),
-            "large_quantum_program_input.json".into(),
-            "quantum_program_input.json".into(),
-        ];
+        let expected: HashMap<String, usize> = [
+            ("LICENSE".into(), 1),
+            ("README.md".into(),1),
+            ("generate-quantum-programs.py".into(),1),
+            ("large_quantum_program_input.json".into(),1),
+            ("quantum_program_input.json".into(),1),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
         assert_eq!(expected, top_5_changed_files.unwrap());
     }
 }
