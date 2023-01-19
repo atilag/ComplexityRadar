@@ -6,11 +6,16 @@ use async_trait;
 use anyhow::Result;
 
 fn sort_by_change_frequency(commits: Vec<RepoCommit>) ->  HashMap<String, usize> {
-    let commit_total_change = commits.into_iter()
-
+    let commit_total_change: Vec<String> = commits.into_iter()
+    .filter(|commit| commit.files.is_some())
+    .flat_map(|commit| commit.files.unwrap_or_default())    
+    .group_by(|file| file.filename.clone())
+    .into_iter()
+    .map(|file| file.0)
+    .collect();
 
     println!("Hash map: {:#?}", commit_total_change);
-    commit_total_change
+    HashMap::new()
 }
 
 
@@ -67,7 +72,9 @@ mod test {
         .cloned()
         .collect();
 
-        assert_eq!(expected, top_5_changed_files.unwrap());
+
+        //assert_eq!(expected, top_5_changed_files.unwrap());
+        assert!(false);
     }
 }
 
