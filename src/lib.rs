@@ -32,6 +32,8 @@ impl TopChangedFilesExt for Octocrab {
         .flat_map(|commit| stream::iter(commit.files))
         .flat_map(|diff_entries| stream::iter(diff_entries))
         .fold(HashMap::new(), |mut changed_files, diff_entry| async move {
+            // We want to measure how frequency a filename is changed, instead of how many changes we the file has
+            // for a specific commit.
             *changed_files.entry(diff_entry.filename).or_insert(0) += 1;
             changed_files
         })
@@ -44,6 +46,7 @@ impl TopChangedFilesExt for Octocrab {
         Ok(changed_files)
     }
 }
+
 
 #[cfg(test)]
 mod test {
