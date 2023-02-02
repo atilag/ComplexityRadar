@@ -1,12 +1,13 @@
 use anyhow::Result;
 
 use itertools::Itertools;
-use octocrab::{models::repos::{RepoCommit}, Octocrab};
+pub use octocrab::Octocrab;
+use octocrab::{models::repos::{RepoCommit}};
 use std::collections::HashMap;
 use futures::{stream, StreamExt};
 
 #[async_trait::async_trait]
-trait TopChangedFilesExt {
+pub trait TopChangedFilesExt {
     async fn get_top_changed_files(
         &self,
         num_of_files: usize,

@@ -18,6 +18,7 @@ path = "src/lib.rs"
 anyhow = "1.0.68"
 async-trait = "0.1.61"
 clap = { version = "4.1.4", features = ["derive"]}
+env_logger = "0.10.0"
 futures = "0.3.25"
 itertools = "0.10.5"
 octocrab = { path="../octocrab" }
