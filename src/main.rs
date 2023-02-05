@@ -1,21 +1,21 @@
+mod report;
+
 use clap::Parser;
 use anyhow::Result;
 use complexity_radar::TopChangedFilesExt;
+use report::print_report;
 use octocrab::Octocrab;
 
 #[derive(Parser, Debug)]
 #[clap(name = "complexity-radar")]
 #[clap(author = env!("CARGO_PKG_AUTHORS"), version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"))]
 pub struct CommandLineArguments {
-    /// Owner of the Github repository
-    #[clap(short, long)]
-    pub owner: String,
+    #[clap(short='u', long="github-user")]
+    pub github_user: String,
 
-    /// Github repository
-    #[clap(short, long)]
-    pub repo: u16,
+    #[clap(short='r', long="github-repo")]
+    pub github_repo: String,
 
-    /// Github token
     #[clap(short='t', long="token")]
     pub token: Option<String>,
 }
@@ -31,10 +31,11 @@ async fn main() -> Result<()> {
     };
 
     let octocrab = Octocrab::builder().personal_token(token).build()?;
-    octocrab
-    .get_top_changed_files(5, "atilag", "IBM-Quantum-Systems-Exercise")
+    let top_files = octocrab
+    .get_top_changed_files(5, &args.github_user, &args.github_repo)
     .await?;
 
+    print_report(&top_files);
 
     Ok(())
 }
