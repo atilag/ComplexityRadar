@@ -14,7 +14,7 @@ pub trait TopChangedFilesExt {
         num_of_files: usize,
         owner: &str,
         repo: &str,
-    ) -> Result<HashMap<String, usize>>;
+    ) -> Result<Vec<(String, usize)>>;
 }
 
 #[async_trait::async_trait]
@@ -24,17 +24,17 @@ impl TopChangedFilesExt for Octocrab {
         number_of_files: usize,
         owner: &str,
         repo: &str,
-    ) -> Result<HashMap<String, usize>> {
+    ) -> Result<Vec<(String, usize)>> {
         let commits = self.repos(owner, repo).list_commits().send().await?;
         let commits_stream = stream::iter(commits);
-        let changed_files: HashMap<String, usize> = commits_stream
+        let changed_files: Vec<(String,usize)> = commits_stream
         .filter_map(|repo_commit| async move { 
             self.get(repo_commit.url, None::<&()>).await.ok() as Option<RepoCommit>
         })
         .flat_map(|commit| stream::iter(commit.files))
         .flat_map(|diff_entries| stream::iter(diff_entries))
         .fold(HashMap::new(), |mut changed_files, diff_entry| async move {
-            // We want to measure how frequency a filename is changed, instead of how many changes we the file has
+            // We want to measure how frequency a filename is changed, instead of how many changes the file has
             // for a specific commit.
             *changed_files.entry(diff_entry.filename).or_insert(0) += 1;
             changed_files
@@ -43,8 +43,8 @@ impl TopChangedFilesExt for Octocrab {
         .into_iter()
         .sorted_by(|a, b| b.1.cmp(&a.1))
         .take(number_of_files)
-        .collect::<HashMap<String, usize>>();
-
+        .collect();
+        
         Ok(changed_files)
     }
 }
@@ -67,12 +67,12 @@ mod test {
             .get_top_changed_files(5, "atilag", "IBM-Quantum-Systems-Exercise")
             .await;
 
-        let expected: HashMap<String, usize> = [
-            ("LICENSE".into(), 1),
+        let expected: Vec<(String, usize)> = [
             ("README.md".into(), 15),
             ("generate-quantum-programs.py".into(), 7),
             ("large_quantum_program_input.json".into(), 4),
             ("quantum_program_input.json".into(), 3),
+            ("LICENSE".into(), 1),
         ]
         .iter()
         .cloned()
