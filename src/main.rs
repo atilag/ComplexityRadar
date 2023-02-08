@@ -1,4 +1,5 @@
 mod report;
+mod complexity;
 
 use clap::Parser;
 use anyhow::Result;
