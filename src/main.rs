@@ -3,6 +3,7 @@ mod complexity;
 
 use clap::Parser;
 use anyhow::Result;
+use complexity::ProgrammingLang;
 use complexity_radar::TopChangedFilesExt;
 use report::print_report;
 use octocrab::Octocrab;
@@ -26,6 +27,31 @@ pub struct CommandLineArguments {
     
 }
 
+
+fn function(){
+    let mut b  = 5;
+    for i in 1..=10 {
+    if i == 10 {
+            if b == 5 {
+                for a in 1..=3 {
+                    println!("a = {a}");
+                }
+            }
+        }else if i == 3 {
+            if b == 3 {
+                for a in 1..=3 {
+                    println!("a = {a}");
+                }
+            } else if b == 5 {
+                for a in 1..=3 {
+                    b = i;
+                    println!("a = {a}");
+                }
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -42,6 +68,8 @@ async fn main() -> Result<()> {
     let top_files = octocrab
     .get_top_changed_files(args.num_rows, &args.github_user, &args.github_repo)
     .await?;
+
+    function();
 
     print_report(&top_files);
 
