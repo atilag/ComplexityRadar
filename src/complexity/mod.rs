@@ -1,3 +1,4 @@
+use regex::Regex;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -17,6 +18,7 @@ pub enum ProgrammingLang {
     Go,
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct FunctionComplexity {
     function: String,
     cognitive_complexity_idx: u16,
@@ -36,7 +38,6 @@ impl LangEvaluator for RustLangEvaluator {
             .arg("clippy::all")
             .arg("-D")
             .arg("clippy::cognitive_complexity")
-            .arg(file_path)
             .output()
             .map_err(|error| {
                 println!("Error running cargo clippy: {error}");
@@ -54,6 +55,23 @@ impl LangEvaluator for RustLangEvaluator {
 }
 
 fn get_function_complexities_from_clippy(text: String) -> Result<Vec<FunctionComplexity>> {
+    let regex_pattern = r#"the function has a cognitive complexity of \((\d+)/\d+\)\n\s+-->\s+(\S+):(\d+):\d+\n\s+\|\n(\d+.+)\n"#;
+    let regex = Regex::new(regex_pattern).unwrap();
+
+    // Extract the matched strings
+    regex.captures(&text).unwrap();
+
+    if let Some(captures) = regex.captures(&text) {
+        let complexity = captures.get(1).unwrap().as_str();
+        let file_path = captures.get(2).unwrap().as_str();
+        let line_number = captures.get(3).unwrap().as_str();
+        let function_name = captures.get(4).unwrap().as_str();
+        println!("Complexity: {}", complexity);
+        println!("File path: {}", file_path);
+        println!("Line number: {}", line_number);
+        println!("function name: {}", function_name);
+    }
+
     Ok(vec![])
 }
 

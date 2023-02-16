@@ -219,6 +219,7 @@ dependencies = [
  "futures",
  "itertools",
  "octocrab",
+ "regex",
  "tempfile",
  "tokio",
  "tokio-test",
