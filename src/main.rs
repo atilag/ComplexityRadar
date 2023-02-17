@@ -53,6 +53,34 @@ fn function() {
     }
 }
 
+fn function2() {
+    let mut b = 5;
+    for i in 1..=10 {
+        if i == 10 {
+            if b == 5 {
+                for a in 1..=3 {
+                    println!(
+                        "a = {a}
+                    
+                    "
+                    );
+                }
+            }
+        } else if i == 3 {
+            if b == 3 {
+                for a in 1..=3 {
+                    println!("a = {a}");
+                }
+            } else if b == 5 {
+                for a in 1..=3 {
+                    b = i;
+                    println!("a = {a}");
+                }
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();

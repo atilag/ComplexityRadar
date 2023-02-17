@@ -4,6 +4,8 @@ use std::process::Command;
 
 use anyhow::Result;
 
+use crate::report::print_report;
+
 pub fn compute_cognitive_index(
     prog_lang: ProgrammingLang,
     file: PathBuf,
@@ -55,24 +57,39 @@ impl LangEvaluator for RustLangEvaluator {
 }
 
 fn get_function_complexities_from_clippy(text: String) -> Result<Vec<FunctionComplexity>> {
-    let regex_pattern = r#"the function has a cognitive complexity of \((\d+)/\d+\)\n\s+-->\s+(\S+):(\d+):\d+\n\s+\|\n(\d+.+)\n"#;
+    // This is the typical output of the clippy command:
+    //
+    //warning: the function has a cognitive complexity of (10/8)
+    //--> src/main.rs:28:4
+    //   |
+    //28 | fn function() {
+
+    let regex_pattern = r#"the function has a cognitive complexity of \((\d+)/\d+\)\n\s+-->\s+(\S+):(\d+):\d+\n\s+\|\n.+\|\s+([^\n{]+)"#;
     let regex = Regex::new(regex_pattern).unwrap();
 
-    // Extract the matched strings
-    regex.captures(&text).unwrap();
+    let func_cc_idxes: Vec<FunctionComplexity> = regex
+        .captures_iter(&text)
+        .map(|captures| {
+            println!("Len: {}", captures.len());
 
-    if let Some(captures) = regex.captures(&text) {
-        let complexity = captures.get(1).unwrap().as_str();
-        let file_path = captures.get(2).unwrap().as_str();
-        let line_number = captures.get(3).unwrap().as_str();
-        let function_name = captures.get(4).unwrap().as_str();
-        println!("Complexity: {}", complexity);
-        println!("File path: {}", file_path);
-        println!("Line number: {}", line_number);
-        println!("function name: {}", function_name);
-    }
+            let complexity = captures.get(1).unwrap().as_str();
+            let file_path = captures.get(2).unwrap().as_str();
+            let line_number = captures.get(3).unwrap().as_str();
+            let function_name = captures.get(4).unwrap().as_str();
 
-    Ok(vec![])
+            println!("complexity {complexity}");
+            println!("file_path {file_path}");
+            println!("line_number {line_number}");
+            println!("function_name {function_name}");
+
+            FunctionComplexity {
+                function: function_name.to_string(),
+                cognitive_complexity_idx: complexity.parse::<u16>().unwrap_or(0),
+            }
+        })
+        .collect();
+
+    Ok(func_cc_idxes)
 }
 
 struct PythonLangEvaluator;
