@@ -1,10 +1,10 @@
+use crate::report::print_report;
+use anyhow::Result;
 use regex::Regex;
 use std::path::PathBuf;
 use std::process::Command;
-
-use anyhow::Result;
-
-use crate::report::print_report;
+use std::{fs, vec};
+use syn;
 
 pub fn compute_cognitive_index(
     prog_lang: ProgrammingLang,
@@ -32,29 +32,41 @@ trait LangEvaluator {
 struct RustLangEvaluator;
 impl LangEvaluator for RustLangEvaluator {
     fn eval(&self, file: PathBuf) -> Result<Vec<FunctionComplexity>> {
-        let file_path = file.into_os_string().into_string().unwrap();
-        let output = Command::new("cargo")
-            .arg("clippy")
-            .arg("--")
-            .arg("-A")
-            .arg("clippy::all")
-            .arg("-D")
-            .arg("clippy::cognitive_complexity")
-            .output()
-            .map_err(|error| {
-                println!("Error running cargo clippy: {error}");
-            });
+        let code = fs::read_to_string(&file)
+            .map_err(|e| e.to_string())
+            .unwrap();
+        let syntax = syn::parse_file(&code).map_err(|e| e.to_string()).unwrap();
+        println!("Syntax: {:#?}", syntax);
 
-        let stdout = match output {
-            Ok(output) => String::from_utf8(output.stderr)
-                .expect("Unintiligible output from clippy command")
-                .to_owned(),
-            Err(_) => "".to_string(),
-        };
-
-        get_function_complexities_from_clippy(stdout)
+        Ok(vec![])
     }
 }
+
+// impl LangEvaluator for RustLangEvaluator {
+//     fn eval(&self, file: PathBuf) -> Result<Vec<FunctionComplexity>> {
+//         let file_path = file.into_os_string().into_string().unwrap();
+//         let output = Command::new("cargo")
+//             .arg("clippy")
+//             .arg("--")
+//             .arg("-A")
+//             .arg("clippy::all")
+//             .arg("-D")
+//             .arg("clippy::cognitive_complexity")
+//             .output()
+//             .map_err(|error| {
+//                 println!("Error running cargo clippy: {error}");
+//             });
+
+//         let stdout = match output {
+//             Ok(output) => String::from_utf8(output.stderr)
+//                 .expect("Unintiligible output from clippy command")
+//                 .to_owned(),
+//             Err(_) => "".to_string(),
+//         };
+
+//         get_function_complexities_from_clippy(stdout)
+//     }
+// }
 
 fn get_function_complexities_from_clippy(text: String) -> Result<Vec<FunctionComplexity>> {
     // This is the typical output of the clippy command:
@@ -138,16 +150,44 @@ mod test {
     #[tokio::test]
     async fn calculate_cognitive_complexity_of_a_rust_file() {
         let complex_block_of_code = "
-            fn ugly_function(){
-                let mut b  = 5;
+            fn function() {
+                let mut b = 5;
                 for i in 1..=10 {
-                if i == 10 {
+                    if i == 10 {
+                        if b == 5 {
+                            for a in 1..=3 {
+                                println!(
+                                    \"a = {a}
+                                
+                                \"
+                                );
+                            }
+                        }
+                    } else if i == 3 {
+                        if b == 3 {
+                            for a in 1..=3 {
+                                println!(\"a = {a}\");
+                            }
+                        } else if b == 5 {
+                            for a in 1..=3 {
+                                b = i;
+                                println!(\"a = {a}\");
+                            }
+                        }
+                    }
+                }
+            }
+
+            fn function2() {
+                let mut b = 5;
+                for i in 1..=10 {
+                    if i == 10 {
                         if b == 5 {
                             for a in 1..=3 {
                                 println!(\"a = {a}\");
                             }
                         }
-                    }else if i == 3 {
+                    } else if i == 3 {
                         if b == 3 {
                             for a in 1..=3 {
                                 println!(\"a = {a}\");
@@ -169,7 +209,7 @@ mod test {
             .unwrap();
 
         let expected = vec![FunctionComplexity {
-            function: "ugly_function".to_string(),
+            function: "fn function()".to_string(),
             cognitive_complexity_idx: 9,
         }];
 
