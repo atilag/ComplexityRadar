@@ -4,7 +4,7 @@ use regex::Regex;
 use std::path::PathBuf;
 use std::process::Command;
 use std::{fs, vec};
-use syn;
+use syn::{self, Block, Expr, ExprMatch, ItemFn, Stmt};
 
 pub fn compute_cognitive_index(
     prog_lang: ProgrammingLang,
@@ -23,7 +23,7 @@ pub enum ProgrammingLang {
 #[derive(PartialEq, Eq, Debug)]
 pub struct FunctionComplexity {
     function: String,
-    cognitive_complexity_idx: u16,
+    cognitive_complexity_value: u16,
 }
 
 trait LangEvaluator {
@@ -35,10 +35,61 @@ impl LangEvaluator for RustLangEvaluator {
         let code = fs::read_to_string(&file)
             .map_err(|e| e.to_string())
             .unwrap();
-        let syntax = syn::parse_file(&code).map_err(|e| e.to_string()).unwrap();
-        println!("Syntax: {:#?}", syntax);
+        let syntax_tree = syn::parse_file(&code).map_err(|e| e.to_string()).unwrap();
+        let functions_complexity = calc_complexities_by_function(syntax_tree).unwrap();
 
         Ok(vec![])
+    }
+}
+
+fn calc_complexities_by_function(syntax_tree: syn::File) -> Result<Vec<FunctionComplexity>> {
+    syntax_tree
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let syn::Item::Fn(item_fn) = item {
+                Some(item_fn)
+            } else {
+                None
+            }
+        })
+        .map(|func| {
+            let cognitive_complexity_value = cognitive_complexity(&func);
+            FunctionComplexity {
+                function: get_function_name(&func),
+                cognitive_complexity_value: cognitive_complexity_value,
+            }
+        })
+        .collect::<Vec<FunctionComplexity>>();
+
+    Ok(vec![])
+}
+
+fn get_function_name(item_fn: &ItemFn) -> String {
+    item_fn.sig.ident.to_string()
+}
+
+fn cognitive_complexity(func: &ItemFn) -> u16 {
+    let Block { stmts, .. } = &*func.block;
+    stmts
+        .iter()
+        .map(|stmt| match stmt {
+            Stmt::Expr(expr) => cognitive_complexity_expr(expr),
+            _ => 0,
+        })
+        .sum()
+}
+
+fn cognitive_complexity_expr(expr: &Expr) -> u16 {
+    match expr {
+        Expr::Match(ExprMatch { arms, .. }) => {
+            let arm_complexity: u16 = arms
+                .iter()
+                .map(|arm| cognitive_complexity_expr(&arm.body))
+                .sum();
+            1 + arm_complexity
+        }
+        _ => 0,
     }
 }
 
@@ -96,7 +147,7 @@ fn get_function_complexities_from_clippy(text: String) -> Result<Vec<FunctionCom
 
             FunctionComplexity {
                 function: function_name.to_string(),
-                cognitive_complexity_idx: complexity.parse::<u16>().unwrap_or(0),
+                cognitive_complexity_value: complexity.parse::<u16>().unwrap_or(0),
             }
         })
         .collect();
@@ -210,7 +261,7 @@ mod test {
 
         let expected = vec![FunctionComplexity {
             function: "fn function()".to_string(),
-            cognitive_complexity_idx: 9,
+            cognitive_complexity_value: 9,
         }];
 
         let cognitive_complex_index =
