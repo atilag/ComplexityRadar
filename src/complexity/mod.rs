@@ -1,10 +1,11 @@
 use crate::report::print_report;
 use anyhow::Result;
 use regex::Regex;
+use std::f32::consts::E;
 use std::path::PathBuf;
 use std::process::Command;
 use std::{fs, vec};
-use syn::{self, Block, Expr, ExprMatch, ItemFn, Stmt};
+use syn::{self, Block, Expr, ExprForLoop, ExprIf, ExprMatch, ItemFn, Stmt};
 
 pub fn compute_cognitive_index(
     prog_lang: ProgrammingLang,
@@ -38,12 +39,12 @@ impl LangEvaluator for RustLangEvaluator {
         let syntax_tree = syn::parse_file(&code).map_err(|e| e.to_string()).unwrap();
         let functions_complexity = calc_complexities_by_function(syntax_tree).unwrap();
 
-        Ok(vec![])
+        Ok(functions_complexity)
     }
 }
 
 fn calc_complexities_by_function(syntax_tree: syn::File) -> Result<Vec<FunctionComplexity>> {
-    syntax_tree
+    Ok(syntax_tree
         .items
         .iter()
         .filter_map(|item| {
@@ -60,9 +61,7 @@ fn calc_complexities_by_function(syntax_tree: syn::File) -> Result<Vec<FunctionC
                 cognitive_complexity_value: cognitive_complexity_value,
             }
         })
-        .collect::<Vec<FunctionComplexity>>();
-
-    Ok(vec![])
+        .collect::<Vec<FunctionComplexity>>())
 }
 
 fn get_function_name(item_fn: &ItemFn) -> String {
@@ -71,6 +70,11 @@ fn get_function_name(item_fn: &ItemFn) -> String {
 
 fn cognitive_complexity(func: &ItemFn) -> u16 {
     let Block { stmts, .. } = &*func.block;
+    cognitive_complexity_block(&func.block)
+}
+
+fn cognitive_complexity_block(block: &Block) -> u16 {
+    let Block { stmts, .. } = &*block;
     stmts
         .iter()
         .map(|stmt| match stmt {
@@ -89,35 +93,22 @@ fn cognitive_complexity_expr(expr: &Expr) -> u16 {
                 .sum();
             1 + arm_complexity
         }
+        Expr::If(ExprIf {
+            then_branch,
+            else_branch,
+            ..
+        }) => {
+            let then_block_complexity: u16 = cognitive_complexity_block(then_branch);
+            let else_block_complexity: u16 = else_branch.as_ref().map_or(0, |(else_expr)| {
+                let box_expr = &else_expr.1;
+                cognitive_complexity_expr(box_expr)
+            });
+            1 + then_block_complexity + else_block_complexity
+        }
+        Expr::ForLoop(ExprForLoop { .. }) => {}
         _ => 0,
     }
 }
-
-// impl LangEvaluator for RustLangEvaluator {
-//     fn eval(&self, file: PathBuf) -> Result<Vec<FunctionComplexity>> {
-//         let file_path = file.into_os_string().into_string().unwrap();
-//         let output = Command::new("cargo")
-//             .arg("clippy")
-//             .arg("--")
-//             .arg("-A")
-//             .arg("clippy::all")
-//             .arg("-D")
-//             .arg("clippy::cognitive_complexity")
-//             .output()
-//             .map_err(|error| {
-//                 println!("Error running cargo clippy: {error}");
-//             });
-
-//         let stdout = match output {
-//             Ok(output) => String::from_utf8(output.stderr)
-//                 .expect("Unintiligible output from clippy command")
-//                 .to_owned(),
-//             Err(_) => "".to_string(),
-//         };
-
-//         get_function_complexities_from_clippy(stdout)
-//     }
-// }
 
 fn get_function_complexities_from_clippy(text: String) -> Result<Vec<FunctionComplexity>> {
     // This is the typical output of the clippy command:
