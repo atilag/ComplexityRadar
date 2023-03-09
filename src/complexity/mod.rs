@@ -1,11 +1,12 @@
 use crate::report::print_report;
 use anyhow::Result;
+use futures::executor::block_on;
 use regex::Regex;
 use std::f32::consts::E;
 use std::path::PathBuf;
 use std::process::Command;
 use std::{fs, vec};
-use syn::{self, Block, Expr, ExprForLoop, ExprIf, ExprMatch, ItemFn, Stmt};
+use syn::{self, Block, Expr, ExprForLoop, ExprIf, ExprMatch, ExprWhile, Item, ItemFn, Stmt};
 
 pub fn compute_cognitive_index(
     prog_lang: ProgrammingLang,
@@ -55,7 +56,7 @@ fn calc_complexities_by_function(syntax_tree: syn::File) -> Result<Vec<FunctionC
             }
         })
         .map(|func| {
-            let cognitive_complexity_value = cognitive_complexity(&func);
+            let cognitive_complexity_value = cognitive_complexity_func(&func);
             FunctionComplexity {
                 function: get_function_name(&func),
                 cognitive_complexity_value: cognitive_complexity_value,
@@ -68,9 +69,8 @@ fn get_function_name(item_fn: &ItemFn) -> String {
     item_fn.sig.ident.to_string()
 }
 
-fn cognitive_complexity(func: &ItemFn) -> u16 {
-    let Block { stmts, .. } = &*func.block;
-    cognitive_complexity_block(&func.block)
+fn cognitive_complexity_func(func: &ItemFn) -> u16 {
+    1 + cognitive_complexity_block(&func.block)
 }
 
 fn cognitive_complexity_block(block: &Block) -> u16 {
@@ -79,6 +79,7 @@ fn cognitive_complexity_block(block: &Block) -> u16 {
         .iter()
         .map(|stmt| match stmt {
             Stmt::Expr(expr) => cognitive_complexity_expr(expr),
+            Stmt::Item(Item::Fn(fn_item)) => cognitive_complexity_func(fn_item),
             _ => 0,
         })
         .sum()
@@ -94,18 +95,29 @@ fn cognitive_complexity_expr(expr: &Expr) -> u16 {
             1 + arm_complexity
         }
         Expr::If(ExprIf {
+            cond,
             then_branch,
             else_branch,
             ..
         }) => {
-            let then_block_complexity: u16 = cognitive_complexity_block(then_branch);
-            let else_block_complexity: u16 = else_branch.as_ref().map_or(0, |(else_expr)| {
+            let cond_expr_complexity = cognitive_complexity_expr(cond);
+            let then_block_complexity = cognitive_complexity_block(then_branch);
+            let else_block_complexity = else_branch.as_ref().map_or(0, |else_expr| {
                 let box_expr = &else_expr.1;
                 cognitive_complexity_expr(box_expr)
             });
-            1 + then_block_complexity + else_block_complexity
+            1 + cond_expr_complexity + then_block_complexity + else_block_complexity
         }
-        Expr::ForLoop(ExprForLoop { .. }) => {}
+        Expr::ForLoop(ExprForLoop { expr, body, .. }) => {
+            let expr_complexity = cognitive_complexity_expr(expr);
+            let block_complexity = cognitive_complexity_block(body);
+            1 + expr_complexity + block_complexity
+        }
+        Expr::While(ExprWhile { cond, body, .. }) => {
+            let cond_expr_complexity = cognitive_complexity_expr(cond);
+            let body_complexity = cognitive_complexity_block(body);
+            1 + cond_expr_complexity + body_complexity
+        }
         _ => 0,
     }
 }
