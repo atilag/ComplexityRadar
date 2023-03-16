@@ -100,23 +100,23 @@ fn cognitive_complexity_expr(expr: &Expr) -> u16 {
             else_branch,
             ..
         }) => {
-            let cond_expr_complexity = cognitive_complexity_expr(cond);
-            let then_block_complexity = cognitive_complexity_block(then_branch);
+            let cond_expr_complexity = cognitive_complexity_expr(cond) + 1;
+            let then_block_complexity = cognitive_complexity_block(then_branch) + 1;
             let else_block_complexity = else_branch.as_ref().map_or(0, |else_expr| {
                 let box_expr = &else_expr.1;
-                cognitive_complexity_expr(box_expr)
+                cognitive_complexity_expr(box_expr) + 1
             });
-            1 + cond_expr_complexity + then_block_complexity + else_block_complexity
+            cond_expr_complexity + then_block_complexity + else_block_complexity
         }
         Expr::ForLoop(ExprForLoop { expr, body, .. }) => {
-            let expr_complexity = cognitive_complexity_expr(expr);
-            let block_complexity = cognitive_complexity_block(body);
-            1 + expr_complexity + block_complexity
+            let expr_complexity = cognitive_complexity_expr(expr) + 1;
+            let block_complexity = cognitive_complexity_block(body) + 1;
+            expr_complexity + block_complexity
         }
         Expr::While(ExprWhile { cond, body, .. }) => {
-            let cond_expr_complexity = cognitive_complexity_expr(cond);
-            let body_complexity = cognitive_complexity_block(body);
-            1 + cond_expr_complexity + body_complexity
+            let cond_expr_complexity = cognitive_complexity_expr(cond) + 1;
+            let body_complexity = cognitive_complexity_block(body) + 1;
+            cond_expr_complexity + body_complexity
         }
         _ => 0,
     }
@@ -262,10 +262,16 @@ mod test {
             .write_all(complex_block_of_code.as_bytes())
             .unwrap();
 
-        let expected = vec![FunctionComplexity {
-            function: "fn function()".to_string(),
-            cognitive_complexity_value: 9,
-        }];
+        let expected = vec![
+            FunctionComplexity {
+                function: "function".to_string(),
+                cognitive_complexity_value: 21,
+            },
+            FunctionComplexity {
+                function: "function2".to_string(),
+                cognitive_complexity_value: 21,
+            },
+        ];
 
         let cognitive_complex_index =
             compute_cognitive_index(ProgrammingLang::Rust, temp_rust_file.path().into()).unwrap();
