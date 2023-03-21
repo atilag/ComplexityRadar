@@ -1,12 +1,11 @@
 use crate::report::print_report;
 use anyhow::Result;
-use futures::executor::block_on;
-use regex::Regex;
-use std::f32::consts::E;
 use std::path::PathBuf;
 use std::process::Command;
 use std::{fs, vec};
-use syn::{self, Block, Expr, ExprForLoop, ExprIf, ExprMatch, ExprWhile, Item, ItemFn, Stmt};
+use syn::{
+    self, BinOp, Block, Expr, ExprForLoop, ExprIf, ExprMatch, ExprWhile, Item, ItemFn, Stmt,
+};
 
 pub fn compute_cognitive_index(
     prog_lang: ProgrammingLang,
@@ -70,7 +69,7 @@ fn get_function_name(item_fn: &ItemFn) -> String {
 }
 
 fn cognitive_complexity_func(func: &ItemFn) -> u16 {
-    1 + cognitive_complexity_block(&func.block)
+    cognitive_complexity_block(&func.block)
 }
 
 fn cognitive_complexity_block(block: &Block) -> u16 {
@@ -86,6 +85,7 @@ fn cognitive_complexity_block(block: &Block) -> u16 {
 }
 
 fn cognitive_complexity_expr(expr: &Expr) -> u16 {
+    let mut binary_count = 0;
     match expr {
         Expr::Match(ExprMatch { arms, .. }) => {
             let arm_complexity: u16 = arms
@@ -100,62 +100,26 @@ fn cognitive_complexity_expr(expr: &Expr) -> u16 {
             else_branch,
             ..
         }) => {
-            let cond_expr_complexity = cognitive_complexity_expr(cond) + 1;
-            let then_block_complexity = cognitive_complexity_block(then_branch) + 1;
+            let conditional_expr_complexity = cognitive_complexity_expr(cond) + 1;
+            let then_block_complexity = cognitive_complexity_block(then_branch);
             let else_block_complexity = else_branch.as_ref().map_or(0, |else_expr| {
                 let box_expr = &else_expr.1;
                 cognitive_complexity_expr(box_expr) + 1
             });
-            cond_expr_complexity + then_block_complexity + else_block_complexity
+            conditional_expr_complexity + then_block_complexity + else_block_complexity
         }
-        Expr::ForLoop(ExprForLoop { expr, body, .. }) => {
-            let expr_complexity = cognitive_complexity_expr(expr) + 1;
-            let block_complexity = cognitive_complexity_block(body) + 1;
-            expr_complexity + block_complexity
-        }
-        Expr::While(ExprWhile { cond, body, .. }) => {
-            let cond_expr_complexity = cognitive_complexity_expr(cond) + 1;
-            let body_complexity = cognitive_complexity_block(body) + 1;
-            cond_expr_complexity + body_complexity
+        Expr::ForLoop(ExprForLoop { expr, body, .. }) => cognitive_complexity_block(body) + 1,
+        Expr::While(ExprWhile { cond, body, .. }) => cognitive_complexity_block(body) + 1,
+        Expr::Binary(expr_binary) => {
+            if let BinOp::And(_) | BinOp::Or(_) | BinOp::BitXor(_) = expr_binary.op {
+                binary_count += 1;
+            }
+            binary_count += cognitive_complexity_expr(&expr_binary.left);
+            binary_count += cognitive_complexity_expr(&expr_binary.right);
+            binary_count
         }
         _ => 0,
     }
-}
-
-fn get_function_complexities_from_clippy(text: String) -> Result<Vec<FunctionComplexity>> {
-    // This is the typical output of the clippy command:
-    //
-    //warning: the function has a cognitive complexity of (10/8)
-    //--> src/main.rs:28:4
-    //   |
-    //28 | fn function() {
-
-    let regex_pattern = r#"the function has a cognitive complexity of \((\d+)/\d+\)\n\s+-->\s+(\S+):(\d+):\d+\n\s+\|\n.+\|\s+([^\n{]+)"#;
-    let regex = Regex::new(regex_pattern).unwrap();
-
-    let func_cc_idxes: Vec<FunctionComplexity> = regex
-        .captures_iter(&text)
-        .map(|captures| {
-            println!("Len: {}", captures.len());
-
-            let complexity = captures.get(1).unwrap().as_str();
-            let file_path = captures.get(2).unwrap().as_str();
-            let line_number = captures.get(3).unwrap().as_str();
-            let function_name = captures.get(4).unwrap().as_str();
-
-            println!("complexity {complexity}");
-            println!("file_path {file_path}");
-            println!("line_number {line_number}");
-            println!("function_name {function_name}");
-
-            FunctionComplexity {
-                function: function_name.to_string(),
-                cognitive_complexity_value: complexity.parse::<u16>().unwrap_or(0),
-            }
-        })
-        .collect();
-
-    Ok(func_cc_idxes)
 }
 
 struct PythonLangEvaluator;
@@ -204,11 +168,11 @@ mod test {
     #[tokio::test]
     async fn calculate_cognitive_complexity_of_a_rust_file() {
         let complex_block_of_code = "
-            fn function() {
+            fn function() { // 38
                 let mut b = 5;
                 for i in 1..=10 {
-                    if i == 10 {
-                        if b == 5 {
+                    if i == 10 { 
+                        if b == 5 { 
                             for a in 1..=3 {
                                 println!(
                                     \"a = {a}
@@ -224,8 +188,8 @@ mod test {
                             }
                         } else if b == 5 {
                             for a in 1..=3 {
-                                b = i;
-                                println!(\"a = {a}\");
+                                b = i; 
+                                println!(\"a = {a}\"); 
                             }
                         }
                     }
@@ -265,11 +229,11 @@ mod test {
         let expected = vec![
             FunctionComplexity {
                 function: "function".to_string(),
-                cognitive_complexity_value: 21,
+                cognitive_complexity_value: 11,
             },
             FunctionComplexity {
                 function: "function2".to_string(),
-                cognitive_complexity_value: 21,
+                cognitive_complexity_value: 11,
             },
         ];
 
