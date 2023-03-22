@@ -40,7 +40,12 @@ async fn main() -> Result<()> {
         .get_top_changed_files(args.num_rows, &args.github_user, &args.github_repo)
         .await?;
 
-    print_report(&top_files);
+    print_report(
+        &top_files
+            .into_iter()
+            .map(|(code_file, change_count)| (code_file.filename, change_count))
+            .collect(),
+    );
 
     Ok(())
 }
