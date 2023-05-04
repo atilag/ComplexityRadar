@@ -1,6 +1,4 @@
 # Complexity Radar
-[![License](https://img.shields.io/github/license/atilag/complexity-radar.svg?style=popout-square)](https://opensource.org/licenses/Apache-2.0)<!--- long-description-skip-begin -->[![Release](https://img.shields.io/github/release/atilag/complexity-radar.svg?style=popout-square)](https://github.com/atilag/complexity-radar/releases)<!--- long-description-skip-end -->
-
 
 Complexity Radar is a tool that shows the most changed files in a GitHub repository and the complexity index for these files. It uses several techniques to measure complexity, like [Cognitive Complexity](https://www.sonarsource.com/docs/CognitiveComplexity.pdf) by G. Ann Campbell or Afferent/Efferent coupling (TODO).
 
