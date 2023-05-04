@@ -1,4 +1,3 @@
-use crate::report::print_report;
 use anyhow::Result;
 use std::path::PathBuf;
 use std::process::Command;
@@ -147,6 +146,7 @@ impl LangEvaluator for PythonLangEvaluator {
 }
 
 fn get_function_complexities_from_flake8(text: String) -> Result<Vec<FunctionComplexity>> {
+    // Yep, the initial idea is to use flake's cognitive complexity linter flag
     Ok(vec![])
 }
 

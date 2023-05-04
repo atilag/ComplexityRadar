@@ -3,7 +3,6 @@ mod report;
 
 use anyhow::Result;
 use clap::Parser;
-use complexity::ProgrammingLang;
 use complexity_radar::TopChangedFilesExt;
 use octocrab::Octocrab;
 use report::print_report;
@@ -12,6 +11,9 @@ use report::print_report;
 #[clap(name = "complexity-radar")]
 #[clap(author = env!("CARGO_PKG_AUTHORS"), version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"))]
 pub struct CommandLineArguments {
+    #[clap(short = 'b', long = "base-url")]
+    pub base_url: Option<String>,
+
     #[clap(short = 'u', long = "github-user")]
     pub github_user: String,
 
@@ -35,7 +37,14 @@ async fn main() -> Result<()> {
         |token| token,
     );
 
-    let octocrab = Octocrab::builder().personal_token(token).build()?;
+    let octocrab = match args.base_url {
+        Some(base_url) => Octocrab::builder()
+            .base_uri(base_url)?
+            .personal_token(token)
+            .build()?,
+        _ => Octocrab::builder().personal_token(token).build()?,
+    };
+
     let top_files = octocrab
         .get_top_changed_files(args.num_rows, &args.github_user, &args.github_repo)
         .await?;

@@ -64,17 +64,23 @@ impl TopChangedFilesExt for Octocrab {
 mod test {
     use super::*;
 
-    fn setup() -> Result<Octocrab> {
+    fn setup(url: Option<&str>) -> Result<Octocrab> {
         let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN env variable is required");
-        Ok(Octocrab::builder().personal_token(token).build()?)
+        match url {
+            Some(url) => Ok(Octocrab::builder()
+                .base_uri(url)?
+                .personal_token(token)
+                .build()?),
+            None => Ok(Octocrab::builder().personal_token(token).build()?),
+        }
     }
 
     #[tokio::test]
     async fn get_the_top_5_changed_files() {
-        let octocrab = setup().unwrap();
+        let octocrab = setup(Some("https://github.com/XAMPPRocky/")).unwrap();
 
         let top_5_changed_files = octocrab
-            .get_top_changed_files(5, "atilag", "IBM-Quantum-Systems-Exercise")
+            .get_top_changed_files(5, "atilag", "octocrab")
             .await;
 
         let expected: Vec<(CodeFile, u32)> = [

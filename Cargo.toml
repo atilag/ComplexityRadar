@@ -2,10 +2,13 @@
 name = "complexity-radar"
 version = "0.1.0"
 authors = ["Juan Gomez <atilag@gmail.com>"]
+descrption = "Command line tool that shows you what are the most changed files in a Github repositiry and calculate their complexity using different techniques"
+repository = "https://github.com/atilag/complexity-radar"
+categories = ["command-line-utilities"]
 edition = "2021"
 
 [[bin]]
-name = "cxradar"
+name = "complexity-radar"
 path = "src/main.rs"
 
 [lib]
@@ -21,7 +24,7 @@ clap = { version = "4.1.4", features = ["derive"]}
 env_logger = "0.10.0"
 futures = "0.3.25"
 itertools = "0.10.5"
-octocrab = { path="../octocrab" }
+octocrab = "0.21.0"
 regex = "1.7.1"
 syn = { version = "1.0.109", default-features=false, features=["parsing", "full", "extra-traits"]}
 tempfile = "3.3.0"
