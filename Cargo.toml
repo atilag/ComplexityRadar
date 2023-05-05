@@ -20,9 +20,11 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1.0.68"
 async-trait = "0.1.61"
+chrono = "0.4.24"
 clap = { version = "4.1.4", features = ["derive"]}
 env_logger = "0.10.0"
 futures = "0.3.25"
+http = "0.2.9"
 itertools = "0.10.5"
 octocrab = "0.21.0"
 regex = "1.7.1"

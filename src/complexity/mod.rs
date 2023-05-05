@@ -166,7 +166,7 @@ mod test {
     use tempfile::NamedTempFile;
 
     #[tokio::test]
-    async fn calculate_cognitive_complexity_of_two_rust_functions() {
+    async fn calculate_cognitive_complexity_of_two_rust_functions_from_a_file() {
         let complex_block_of_code = "
             fn function() { // 38
                 let mut b = 5;
