@@ -24,9 +24,10 @@ chrono = "0.4.24"
 clap = { version = "4.1.4", features = ["derive"]}
 env_logger = "0.10.0"
 futures = "0.3.25"
+futures-util = "0.3.28"
 http = "0.2.9"
 itertools = "0.10.5"
-octocrab = "0.21.0"
+octocrab = { version = "0.21.0", features=["stream"] }
 regex = "1.7.1"
 syn = { version = "1.0.109", default-features=false, features=["parsing", "full", "extra-traits"]}
 tempfile = "3.3.0"

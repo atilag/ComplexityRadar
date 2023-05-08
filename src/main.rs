@@ -3,9 +3,10 @@ mod report;
 
 use anyhow::Result;
 use clap::Parser;
+use complexity::{compute_cognitive_index, FunctionComplexity, ProgrammingLang};
 use complexity_radar::TopChangedFilesExt;
 use octocrab::Octocrab;
-use report::print_report;
+use report::{print_heat_map_report, print_top_complexities_report};
 
 #[derive(Parser, Debug)]
 #[clap(name = "complexity-radar")]
@@ -27,6 +28,12 @@ pub struct CommandLineArguments {
     pub token: Option<String>,
 }
 
+pub struct TopComplexities {
+    code_filename: String, /* TODO: Use PathBuf? */
+    num_changes: u32,
+    function_complexities: Vec<FunctionComplexity>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -45,16 +52,28 @@ async fn main() -> Result<()> {
         _ => Octocrab::builder().personal_token(token).build()?,
     };
 
-    let top_files = octocrab
+    let top_complexities = octocrab
         .get_top_changed_files(args.num_rows, &args.github_user, &args.github_repo)
-        .await?;
+        .await?
+        .iter()
+        .map(|(code_filename, num_changes)| -> Result<TopComplexities> {
+            let cognitive_complex_indexes =
+                compute_cognitive_index(ProgrammingLang::Rust, code_filename.into())?;
+            Ok(TopComplexities {
+                code_filename: code_filename.clone(),
+                num_changes: *num_changes,
+                function_complexities: cognitive_complex_indexes,
+            })
+        })
+        .collect::<Vec<Result<TopComplexities>>>();
 
-    print_report(
-        &top_files
-            .into_iter()
-            .map(|(code_file, change_count)| (code_file.filename, change_count))
-            .collect(),
-    );
+    // print_heat_map_report(
+    //     &top_files
+    //         .into_iter()
+    //         .map(|(code_file, change_count)| (code_file.filename, change_count))
+    //         .collect(),
+    // );
 
+    print_top_complexities_report(&top_complexities);
     Ok(())
 }

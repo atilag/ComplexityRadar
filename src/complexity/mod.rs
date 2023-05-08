@@ -6,6 +6,12 @@ use syn::{
     self, BinOp, Block, Expr, ExprForLoop, ExprIf, ExprMatch, ExprWhile, Item, ItemFn, Stmt,
 };
 
+#[derive(PartialEq, Eq, Debug)]
+pub struct FunctionComplexity {
+    pub function: String,
+    pub cognitive_complexity_value: u16,
+}
+
 pub fn compute_cognitive_index(
     prog_lang: ProgrammingLang,
     file: PathBuf,
@@ -18,12 +24,6 @@ pub enum ProgrammingLang {
     Rust,
     Python,
     Go,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct FunctionComplexity {
-    function: String,
-    cognitive_complexity_value: u16,
 }
 
 trait LangEvaluator {
