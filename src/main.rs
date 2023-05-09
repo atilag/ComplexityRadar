@@ -56,16 +56,18 @@ async fn main() -> Result<()> {
         .get_top_changed_files(args.num_rows, &args.github_user, &args.github_repo)
         .await?
         .iter()
-        .map(|(code_filename, num_changes)| -> Result<TopComplexities> {
-            let cognitive_complex_indexes =
-                compute_cognitive_index(ProgrammingLang::Rust, code_filename.into())?;
-            Ok(TopComplexities {
-                code_filename: code_filename.clone(),
-                num_changes: *num_changes,
-                function_complexities: cognitive_complex_indexes,
-            })
+        .map(|(code_filename, num_changes)| {
+            compute_cognitive_index(ProgrammingLang::Rust, code_filename.into())
+                .and_then(|cognitive_complex_indexes| {
+                    Ok(TopComplexities {
+                        code_filename: code_filename.clone(),
+                        num_changes: *num_changes,
+                        function_complexities: cognitive_complex_indexes,
+                    })
+                })
+                .map_err(|msg| msg.into())
         })
-        .collect::<Vec<Result<TopComplexities>>>();
+        .collect::<Vec<Result<TopComplexities, _>>>();
 
     // print_heat_map_report(
     //     &top_files

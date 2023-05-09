@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::path::PathBuf;
 use std::process::Command;
 use std::{fs, vec};
@@ -32,13 +32,25 @@ trait LangEvaluator {
 struct RustLangEvaluator;
 impl LangEvaluator for RustLangEvaluator {
     fn eval(&self, file: PathBuf) -> Result<Vec<FunctionComplexity>> {
-        let code = fs::read_to_string(&file)
-            .map_err(|e| e.to_string())
-            .unwrap();
-        let syntax_tree = syn::parse_file(&code).map_err(|e| e.to_string()).unwrap();
-        let functions_complexity = calc_complexities_by_function(syntax_tree).unwrap();
+        if let Some(extension) = file.extension() {
+            if extension != "rs" {
+                return Err(anyhow!("Invalid source file"));
+            }
+        }
 
-        Ok(functions_complexity)
+        let code = fs::read_to_string(&file)
+            .map_err(|e| {
+                format!(
+                    "Cannot open code file: {}: Error: {}",
+                    file.to_string_lossy().to_string(),
+                    e.to_string()
+                )
+            })
+            .unwrap();
+        let syntax_tree = syn::parse_file(&code)?;
+        let functions_complexity = calc_complexities_by_function(syntax_tree);
+
+        functions_complexity
     }
 }
 

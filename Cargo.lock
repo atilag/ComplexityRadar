@@ -222,6 +222,7 @@ dependencies = [
  "regex",
  "syn 1.0.109",
  "tempfile",
+ "thiserror",
  "tokio",
  "tokio-test",
 ]
