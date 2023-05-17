@@ -12,6 +12,7 @@ use report::{print_heat_map_report, print_top_complexities_report};
 #[clap(name = "complexity-radar")]
 #[clap(author = env!("CARGO_PKG_AUTHORS"), version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"))]
 pub struct CommandLineArguments {
+    /// set base url, like: https://your-company.github.com/
     #[clap(short = 'b', long = "base-url")]
     pub base_url: Option<String>,
 
@@ -21,11 +22,17 @@ pub struct CommandLineArguments {
     #[clap(short = 'r', long = "github-repo")]
     pub github_repo: String,
 
+    /// Number or files to show in the report
     #[clap(short = 'n', long = "num-rows", default_value_t = 5)]
     pub num_rows: usize,
 
+    /// GitHub token to authenticate against GitHub API
     #[clap(short = 't', long = "token")]
     pub token: Option<String>,
+
+    /// Do not compute complexity, only shows the top modified files of the repo
+    #[clap(long)]
+    pub heat_map_only: bool,
 }
 
 pub struct TopComplexities {
@@ -33,6 +40,8 @@ pub struct TopComplexities {
     num_changes: u32,
     function_complexities: Vec<FunctionComplexity>,
 }
+
+pub type TopChangedFiles = std::collections::HashMap<std::string::String, u32>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -52,9 +61,16 @@ async fn main() -> Result<()> {
         _ => Octocrab::builder().personal_token(token).build()?,
     };
 
-    let top_complexities = octocrab
+    let top_changed_files = octocrab
         .get_top_changed_files(args.num_rows, &args.github_user, &args.github_repo)
-        .await?
+        .await?;
+
+    if args.heat_map_only {
+        print_heat_map_report(&top_changed_files);
+        return Ok(());
+    }
+
+    let top_complexities = top_changed_files
         .iter()
         .map(|(code_filename, num_changes)| {
             compute_cognitive_index(ProgrammingLang::Rust, code_filename.into())

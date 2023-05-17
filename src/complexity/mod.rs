@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::{fs, vec};
 use syn::{
-    self, BinOp, Block, Expr, ExprForLoop, ExprIf, ExprMatch, ExprWhile, Item, ItemFn, Stmt,
+    self, Block, Expr, ExprClosure, ExprForLoop, ExprIf, ExprMatch, ExprWhile, Item, ItemFn, Stmt,
 };
 
 #[derive(PartialEq, Eq, Debug)]
@@ -26,6 +26,8 @@ pub enum ProgrammingLang {
     Go,
 }
 
+const NESTING_LEVEL_ZERO: u16 = 0;
+
 trait LangEvaluator {
     fn eval(&self, file: PathBuf) -> Result<Vec<FunctionComplexity>>;
 }
@@ -41,7 +43,7 @@ impl LangEvaluator for RustLangEvaluator {
         let code = fs::read_to_string(&file)
             .map_err(|e| {
                 format!(
-                    "Cannot open code file: {}: Error: {}",
+                    "Cannot open code file: {}: Make sure you have cloned the repository locally. Error: {}",
                     file.to_string_lossy().to_string(),
                     e.to_string()
                 )
@@ -59,7 +61,7 @@ fn calc_complexities_by_function(syntax_tree: syn::File) -> Result<Vec<FunctionC
         .items
         .iter()
         .filter_map(|item| {
-            if let syn::Item::Fn(item_fn) = item {
+            if let Item::Fn(item_fn) = item {
                 Some(item_fn)
             } else {
                 None
@@ -80,28 +82,26 @@ fn get_function_name(item_fn: &ItemFn) -> String {
 }
 
 fn cognitive_complexity_func(func: &ItemFn) -> u16 {
-    cognitive_complexity_block(&func.block)
+    cognitive_complexity_block(&func.block, NESTING_LEVEL_ZERO)
 }
 
-fn cognitive_complexity_block(block: &Block) -> u16 {
+fn cognitive_complexity_block(block: &Block, nesting_level: u16) -> u16 {
     let Block { stmts, .. } = &*block;
     stmts
         .iter()
         .map(|stmt| match stmt {
-            Stmt::Expr(expr) => cognitive_complexity_expr(expr),
-            Stmt::Item(Item::Fn(fn_item)) => cognitive_complexity_func(fn_item),
+            Stmt::Expr(expr) => cognitive_complexity_expr(expr, nesting_level),
             _ => 0,
         })
         .sum()
 }
 
-fn cognitive_complexity_expr(expr: &Expr) -> u16 {
-    let mut binary_count = 0;
-    match expr {
+fn cognitive_complexity_expr(expr: &Expr, nesting_level: u16) -> u16 {
+    let expr_cognitive_index = match expr {
         Expr::Match(ExprMatch { arms, .. }) => {
             let arm_complexity: u16 = arms
                 .iter()
-                .map(|arm| cognitive_complexity_expr(&arm.body))
+                .map(|arm| cognitive_complexity_expr(&arm.body, nesting_level + 1))
                 .sum();
             1 + arm_complexity
         }
@@ -111,26 +111,41 @@ fn cognitive_complexity_expr(expr: &Expr) -> u16 {
             else_branch,
             ..
         }) => {
-            let conditional_expr_complexity = cognitive_complexity_expr(cond) + 1;
-            let then_block_complexity = cognitive_complexity_block(then_branch);
+            let conditional_expr_complexity = cognitive_complexity_expr(cond, nesting_level + 1);
+            let then_block_complexity = cognitive_complexity_block(then_branch, nesting_level + 1);
             let else_block_complexity = else_branch.as_ref().map_or(0, |else_expr| {
                 let box_expr = &else_expr.1;
-                cognitive_complexity_expr(box_expr) + 1
+                cognitive_complexity_expr(box_expr, nesting_level + 1)
             });
-            conditional_expr_complexity + then_block_complexity + else_block_complexity
+            1 + conditional_expr_complexity + then_block_complexity + else_block_complexity
         }
-        Expr::ForLoop(ExprForLoop { expr, body, .. }) => cognitive_complexity_block(body) + 1,
-        Expr::While(ExprWhile { cond, body, .. }) => cognitive_complexity_block(body) + 1,
-        Expr::Binary(expr_binary) => {
-            if let BinOp::And(_) | BinOp::Or(_) | BinOp::BitXor(_) = expr_binary.op {
-                binary_count += 1;
-            }
-            binary_count += cognitive_complexity_expr(&expr_binary.left);
-            binary_count += cognitive_complexity_expr(&expr_binary.right);
-            binary_count
+        Expr::ForLoop(ExprForLoop { body, .. }) | Expr::While(ExprWhile { body, .. }) => {
+            1 + cognitive_complexity_block(body, nesting_level + 1)
         }
+        Expr::Closure(ExprClosure { body, .. }) => {
+            // The closure (lambda) itself doesn't add to the index, but increments nesting level
+            cognitive_complexity_expr(body, nesting_level + 1)
+        }
+
+        // TODO: Sequence of boolean operations are disabled until I figure out how Syn parse them...
+        // Expr::Binary(expr_binary) => {
+        //     if let BinOp::And(_) | BinOp::Or(_) | BinOp::BitXor(_) = expr_binary.op {
+        //         binary_count += 1;
+        //     }
+        //     binary_count += cognitive_complexity_expr(&expr_binary.left, nesting_level);
+        //     binary_count += cognitive_complexity_expr(&expr_binary.right, nesting_level);
+        //     binary_count
+        // }
         _ => 0,
+    };
+
+    // Return 0 in this case because if there's no cognitive index in the expression we don't have to add
+    // any nesting level
+    if expr_cognitive_index == 0 {
+        return 0;
     }
+
+    expr_cognitive_index + nesting_level
 }
 
 struct PythonLangEvaluator;
@@ -248,6 +263,130 @@ mod test {
                 cognitive_complexity_value: 11,
             },
         ];
+
+        let cognitive_complex_index =
+            compute_cognitive_index(ProgrammingLang::Rust, temp_rust_file.path().into()).unwrap();
+
+        assert_eq!(expected, cognitive_complex_index);
+    }
+
+    #[tokio::test]
+    async fn calculate_cognitive_complexity_of_for_loop_and_if_nesting_level_1() {
+        let simple_block_of_code = "
+            fn function() {
+                for i in 1..=10 { // 1 + 0 nesting
+                    if i == 10 { // 1 + 1 nesting
+                        println!(\"i = {i}\");
+                    }
+                }
+            } // Total: 3
+        ";
+
+        let mut temp_rust_file = NamedTempFile::new().unwrap();
+        temp_rust_file
+            .write_all(simple_block_of_code.as_bytes())
+            .unwrap();
+
+        let expected = vec![FunctionComplexity {
+            function: "function".to_string(),
+            cognitive_complexity_value: 3,
+        }];
+
+        let cognitive_complex_index =
+            compute_cognitive_index(ProgrammingLang::Rust, temp_rust_file.path().into()).unwrap();
+
+        assert_eq!(expected, cognitive_complex_index);
+    }
+
+    #[tokio::test]
+    async fn calculate_cognitive_complexity_of_two_ifs_nesting_level_2() {
+        let simple_block_of_code = "
+            fn function() {
+                for i in 1..=10 { // 1 + 0 nesting
+                    if i == 10 { // 1 + 1 nesting
+                        if n == 10 { // 1 + 2 nesting
+                            return 0;
+                        }
+                        if n == 10 { // 1 + 2 nesting
+                            return 0;
+                        }
+                        println!(\"i = {i}\");
+                    }
+                }
+            } // Total: 9
+        ";
+
+        let mut temp_rust_file = NamedTempFile::new().unwrap();
+        temp_rust_file
+            .write_all(simple_block_of_code.as_bytes())
+            .unwrap();
+
+        let expected = vec![FunctionComplexity {
+            function: "function".to_string(),
+            cognitive_complexity_value: 9,
+        }];
+
+        let cognitive_complex_index =
+            compute_cognitive_index(ProgrammingLang::Rust, temp_rust_file.path().into()).unwrap();
+
+        assert_eq!(expected, cognitive_complex_index);
+    }
+
+    #[tokio::test]
+    async fn calculate_cognitive_complexity_of_if_with_3_binary_operators() {
+        let simple_block_of_code = "
+            fn function() {
+                let a = true;
+                let b = false;
+                let c = true;
+                // Binary operations are not supported yet, so they don't add up.
+                if a || b && b || a && c || b { // 1 + 0 nesting 
+                        println!(\"Hola!\");
+                }
+            } // Total: 1
+        ";
+
+        let mut temp_rust_file = NamedTempFile::new().unwrap();
+        temp_rust_file
+            .write_all(simple_block_of_code.as_bytes())
+            .unwrap();
+
+        let expected = vec![FunctionComplexity {
+            function: "function".to_string(),
+            cognitive_complexity_value: 1,
+        }];
+
+        let cognitive_complex_index =
+            compute_cognitive_index(ProgrammingLang::Rust, temp_rust_file.path().into()).unwrap();
+
+        assert_eq!(expected, cognitive_complex_index);
+    }
+
+    #[tokio::test]
+    async fn calculate_cognitive_complexity_of_closure_with_an_if() {
+        let simple_block_of_code = "
+            fn function() {
+                let v = vec![1,2,3,4];
+                let sum : i32 = v.into_iter().map(|element|{
+                    if element == 1 { // 1 + 2 nesting
+                        return element * 2;
+                    }
+                    element + 1
+                })
+                .sum();
+            } // Total: 3
+        ";
+
+        let mut temp_rust_file = NamedTempFile::new().unwrap();
+        temp_rust_file
+            .write_all(simple_block_of_code.as_bytes())
+            .unwrap();
+
+        let expected = vec![FunctionComplexity {
+            function: "function".to_string(),
+            // This is not supported yet
+            cognitive_complexity_value: 0,
+        }];
 
         let cognitive_complex_index =
             compute_cognitive_index(ProgrammingLang::Rust, temp_rust_file.path().into()).unwrap();

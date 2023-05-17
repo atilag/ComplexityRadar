@@ -15,7 +15,7 @@ cargo add complexity-radar
 You can run the command line tool like:
 
 ```bash
-complexity-radar -u <github user> -r <repository name> -t <github token> -n <top n files to show>
+complexity-radar -u <github user> -r <repository name> -t <github token> -n <top n files to show> --heat-map-only
 ```
 
 ## Dual License
