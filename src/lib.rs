@@ -6,7 +6,6 @@ use futures_util::StreamExt;
 use itertools::Itertools;
 use octocrab::models::repos::RepoCommit;
 pub use octocrab::Octocrab;
-use std::collections::{BTreeMap, HashMap};
 use std::ops::Sub;
 
 //pub type ChangedFileCounts = std::collections::BTreeMap<std::string::String, u32>;
@@ -38,7 +37,6 @@ impl TopChangedFilesExt for Octocrab {
             .await?
             .into_stream(&self);
 
-        //let commits_stream = stream::iter(commits);
         let changed_files: ChangedFileCounts = commits_stream
             .filter_map(
                 |repo_commit| async move { repo_commit.ok().map(|repo_commit| repo_commit) },
@@ -53,16 +51,11 @@ impl TopChangedFilesExt for Octocrab {
                 |mut interim_changed_files, diff_entry| async move {
                     // We want to measure how frequency a filename is changed, instead of how many changes the file has
                     // for a specific commit. That's why we count how many commits have changes for a specific file.
-                    // *iterim_changed_files.entry(diff_entry.filename).or_insert(0) += 1;
-                    // iterim_changed_files
-                    if let Some(existing_entry) = interim_changed_files
+                    interim_changed_files
                         .iter_mut()
                         .find(|(filename, _)| *filename == diff_entry.filename)
-                    {
-                        existing_entry.1 += 1;
-                    } else {
-                        interim_changed_files.push((diff_entry.filename, 1));
-                    }
+                        .map(|existing_entry| existing_entry.1 += 1)
+                        .or_else(|| Some(interim_changed_files.push((diff_entry.filename, 1))));
                     interim_changed_files
                 },
             )

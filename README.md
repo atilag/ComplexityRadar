@@ -1,14 +1,12 @@
 # Complexity Radar
 
-Complexity Radar is a tool that shows the most changed files in a GitHub repository and the complexity index for these files. It uses several techniques to measure complexity, like [Cognitive Complexity](https://www.sonarsource.com/docs/CognitiveComplexity.pdf) by G. Ann Campbell or Afferent/Efferent coupling (TODO).
+Complexity Radar is a tool that shows the most changed files in a GitHub repository and the complexity index for these files. It uses several techniques to measure complexity, like [Cognitive Complexity](https://www.sonarsource.com/docs/CognitiveComplexity.pdf) by G. Ann Campbell or Afferent/Efferent coupling.
 
 This tool aims to help teams dealing with large-scale software projects have more educated decisions on where to focus on reducing the complexity of the codebase.
 
-## Installation
+[WARNING]
+Calculating complexities is still in development, and only works for Rust projects :)
 
-```bash
-cargo add complexity-radar
-```
 
 ## Getting started
 
