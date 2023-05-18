@@ -41,8 +41,6 @@ pub struct TopComplexities {
     function_complexities: Vec<FunctionComplexity>,
 }
 
-pub type TopChangedFiles = std::collections::HashMap<std::string::String, u32>;
-
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -84,13 +82,6 @@ async fn main() -> Result<()> {
                 .map_err(|msg| msg.into())
         })
         .collect::<Vec<Result<TopComplexities, _>>>();
-
-    // print_heat_map_report(
-    //     &top_files
-    //         .into_iter()
-    //         .map(|(code_file, change_count)| (code_file.filename, change_count))
-    //         .collect(),
-    // );
 
     print_top_complexities_report(&top_complexities);
     Ok(())

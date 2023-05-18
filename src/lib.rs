@@ -1,14 +1,16 @@
 use anyhow::Result;
 
 use chrono::{Duration, Utc};
-use core::hash::{Hash, Hasher};
 use futures::stream;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use octocrab::models::repos::RepoCommit;
 pub use octocrab::Octocrab;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Sub;
+
+//pub type ChangedFileCounts = std::collections::BTreeMap<std::string::String, u32>;
+pub type ChangedFileCounts = Vec<(std::string::String, u32)>;
 
 #[async_trait::async_trait]
 pub trait TopChangedFilesExt {
@@ -17,7 +19,7 @@ pub trait TopChangedFilesExt {
         num_of_files: usize,
         owner: &str,
         repo: &str,
-    ) -> Result<HashMap<String, u32>>;
+    ) -> Result<ChangedFileCounts>;
 }
 
 #[async_trait::async_trait]
@@ -27,7 +29,7 @@ impl TopChangedFilesExt for Octocrab {
         number_of_files: usize,
         owner: &str,
         repo: &str,
-    ) -> Result<HashMap<String, u32>> {
+    ) -> Result<ChangedFileCounts> {
         let commits_stream = self
             .repos(owner, repo)
             .list_commits()
@@ -37,7 +39,7 @@ impl TopChangedFilesExt for Octocrab {
             .into_stream(&self);
 
         //let commits_stream = stream::iter(commits);
-        let changed_files: HashMap<String, u32> = commits_stream
+        let changed_files: ChangedFileCounts = commits_stream
             .filter_map(
                 |repo_commit| async move { repo_commit.ok().map(|repo_commit| repo_commit) },
             )
@@ -47,17 +49,26 @@ impl TopChangedFilesExt for Octocrab {
             .flat_map(|commit| stream::iter(commit.files))
             .flat_map(|diff_entries| stream::iter(diff_entries))
             .fold(
-                HashMap::new(),
-                |mut iterim_changed_files, diff_entry| async move {
+                Vec::new(),
+                |mut interim_changed_files, diff_entry| async move {
                     // We want to measure how frequency a filename is changed, instead of how many changes the file has
                     // for a specific commit. That's why we count how many commits have changes for a specific file.
-                    *iterim_changed_files.entry(diff_entry.filename).or_insert(0) += 1;
-                    iterim_changed_files
+                    // *iterim_changed_files.entry(diff_entry.filename).or_insert(0) += 1;
+                    // iterim_changed_files
+                    if let Some(existing_entry) = interim_changed_files
+                        .iter_mut()
+                        .find(|(filename, _)| *filename == diff_entry.filename)
+                    {
+                        existing_entry.1 += 1;
+                    } else {
+                        interim_changed_files.push((diff_entry.filename, 1));
+                    }
+                    interim_changed_files
                 },
             )
             .await
             .into_iter()
-            .sorted_by(|a, b| b.1.cmp(&a.1))
+            .sorted_by(|(_, b1), (_, b2)| b2.cmp(b1))
             .take(number_of_files)
             .collect();
 
@@ -82,13 +93,13 @@ mod test {
             .get_top_changed_files(5, "qiskit", "qiskit-terra")
             .await;
 
-        let expected = HashMap::from([
+        let expected = vec![
             ("README.md".into(), 15),
             ("generate-quantum-programs.py".into(), 7),
             ("large_quantum_program_input.json".into(), 4),
             ("quantum_program_input.json".into(), 3),
             ("LICENSE".into(), 1),
-        ]);
+        ];
 
         assert_eq!(expected, top_5_changed_files.unwrap());
     }

@@ -1,7 +1,8 @@
-use crate::{TopChangedFiles, TopComplexities};
+use crate::TopComplexities;
 use anyhow::Result;
+use complexity_radar::ChangedFileCounts;
 
-pub fn print_report_without_header(top_changed_files: &TopChangedFiles) {
+pub fn print_report_without_header(top_changed_files: &ChangedFileCounts) {
     top_changed_files.iter().for_each(|(file, num_changes)| {
         println!("{}\t{}", file, num_changes);
     });
@@ -23,7 +24,7 @@ pub fn print_top_complexities_report_without_header(top_complexities: &TopComple
         })
 }
 
-pub fn print_heat_map_report(top_changed_files: &TopChangedFiles) {
+pub fn print_heat_map_report(top_changed_files: &ChangedFileCounts) {
     println!("{}", format!("{:80}", "-").replace(" ", "-"));
     println!("File\t\tNumber of changes");
     println!("{}", format!("{:80}", "-").replace(" ", "-"));
