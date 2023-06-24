@@ -73,18 +73,71 @@ impl TopChangedFilesExt for Octocrab {
 mod test {
     use super::*;
 
-    fn setup() -> Result<Octocrab> {
+    use std::fs;
+    use std::io;
+
+    use octocrab::models::repos::{RepoCommit, RepoCommitPage};
+    use octocrab::models::Author;
+    use serde::{Deserialize, Serialize};
+    use serde_json::json;
+    use wiremock::{
+        matchers::{method, path, path_regex},
+        Mock, MockServer, ResponseTemplate,
+    };
+
+    #[derive(Serialize, Deserialize)]
+    struct FakePage<T> {
+        items: Vec<T>,
+    }
+
+    pub async fn setup_error_handler(mock_server: &MockServer, message: &str) {
+        Mock::given(method("GET"))
+            .and(path_regex(".*"))
+            .respond_with(ResponseTemplate::new(500).set_body_json(json!( {
+                "documentation_url": "",
+                "errors": None::<Vec<serde_json::Value>>,
+                "message": message,
+            })))
+            .mount(mock_server)
+            .await;
+    }
+
+    async fn setup_api(template: ResponseTemplate) -> MockServer {
+        let owner = "owner";
+        let repo = "repo";
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/repos/{owner}/{repo}/commits")))
+            .respond_with(template)
+            .mount(&mock_server)
+            .await;
+        setup_error_handler(
+            &mock_server,
+            &format!("GET on /repo/{owner}/{repo}/commits was not received"),
+        )
+        .await;
+        mock_server
+    }
+
+    async fn setup(response_template: ResponseTemplate) -> Result<Octocrab> {
+        let server = setup_api(response_template).await;
         let token = std::env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN env variable is required");
         Ok(Octocrab::builder().personal_token(token).build()?)
     }
 
+    fn load_responses() -> String {
+        fs::read_to_string("data/responses.dat").expect("Could not read test responses file")
+    }
+
     #[tokio::test]
     async fn get_the_top_5_changed_files() {
-        let octocrab = setup().unwrap();
+        let github_response = load_responses();
 
-        let top_5_changed_files = octocrab
-            .get_top_changed_files(5, "qiskit", "qiskit-terra")
-            .await;
+        let response_template = ResponseTemplate::new(200).set_body_json(github_response);
+
+        let octocrab = setup(response_template).await;
+
+        let top_5_changed_files = octocrab.get_top_changed_files(5, "owner", "repo").await;
 
         let expected = vec![
             ("README.md".into(), 15),
